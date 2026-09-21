@@ -124,6 +124,22 @@ button.sync{background:transparent;cursor:pointer;margin-left:6px}
 .expbar{display:flex;justify-content:flex-end;margin:-2px 0 10px}
 textarea{width:100%;min-height:200px;padding:10px;border:1px solid var(--line);border-radius:9px;background:var(--panel);color:var(--text);font:13px/1.4 ui-monospace,Menlo,Consolas,monospace}
 /* pastel look */
+@media (max-width:640px){
+  .tw.stack table{min-width:0!important}
+  .tw.stack thead{display:none}
+  .tw.stack tr{display:block;padding:10px 14px;border-bottom:1px solid var(--line)}
+  .tw.stack tbody tr:last-child{border-bottom:0}
+  .tw.stack td{display:flex;justify-content:space-between;align-items:center;gap:12px;border:0;padding:3px 0;white-space:normal}
+  .tw.stack td::before{content:attr(data-l);color:var(--muted);font-size:13px}
+  .tw.stack td[data-l="Bank name"]{font-weight:700}
+  .tw.stack td[data-l="Bank name"]::before{content:none}
+  .tw.stack td:empty{display:none}
+  .tw.stack td.empty{display:block}
+  .tw.stack td.empty::before{content:none}
+  .tw.stack tfoot tr{border-bottom:0;background:#f7f0ff}
+  .tw.stack tfoot td{background:transparent;border:0}
+}
+.dt{width:165px;min-height:36px;padding:5px 8px}
 select,input,textarea{color:var(--text)}
 .brand>div{min-width:0}
 .brand h1{white-space:nowrap}
@@ -242,12 +258,13 @@ var sig=function(l){return JSON.stringify((l||[]).slice().sort(function(a,b){ret
 
 /* ---------- state ---------- */
 function emptyCfg(){return{loanAgents:[],leadsAgents:[],banks:[],loanTypes:[],incentives:[],incomeCats:[],expenseCats:[],
-  tax:{orc:10,dms1:10,dms2:2},leadsRate:{orc:1.5,dms:1.5},loanLeads:{rate:1,tax1:10,tax2:2},includeLeads:false,cashBond:100}}
+  tax:{orc:10,dms1:10,dms2:2},leadsRate:{orc:1.5,dms:1.5},loanLeads:{rate:1,tax1:10,tax2:2},includeLeads:false,cashBond:100,recv:{}}}
 function mergeCfg(d){
   var e=emptyCfg();var o=Object.assign(e,d||{});
   o.tax=Object.assign(emptyCfg().tax,(d&&d.tax)||{});
   o.leadsRate=Object.assign(emptyCfg().leadsRate,(d&&d.leadsRate)||{});
   o.loanLeads=Object.assign(emptyCfg().loanLeads,(d&&d.loanLeads)||{});
+  if(!o.recv||typeof o.recv!=='object'||Array.isArray(o.recv))o.recv={};
   ['loanAgents','leadsAgents','banks','loanTypes','incentives','incomeCats','expenseCats'].forEach(function(k){if(!Array.isArray(o[k]))o[k]=[]});
   return o;
 }
@@ -407,9 +424,10 @@ function exportAgency(ag){
     calc.forEach(function(x){var r=x.r;out.push([r.date,agentName(r),r.client,num(r.approved),num(r.booked),bankName(r),ltName(r),r.status,x.c.rate,x.c.gross,x.c.t1,x.c.after,x.c.t2,x.c.net])});
   }
   var bs=bankSummary(rows,ag);
-  out.push([],['Summary by bank'],['Bank name','Total approval','Total booked','Total net commission']);
-  bs.keys.forEach(function(k){out.push([k,bs.by[k].ap,bs.by[k].bk,bs.by[k].nt])});
-  out.push(['Total',bs.ap,bs.bk,bs.nt]);
+  var ym2=F.month?F.year+'-'+pad(F.month):'';
+  out.push([],['Summary by bank'],['Bank name','Total approval','Total booked','Total net commission','Date commission received']);
+  bs.keys.forEach(function(k){out.push([k,bs.by[k].ap,bs.by[k].bk,bs.by[k].nt,ym2?(S.cfg.recv[ag+'|'+ym2+'|'+bs.by[k].key]||''):''])});
+  out.push(['Total',bs.ap,bs.bk,bs.nt,'']);
   out.push([],['Agent performance'],['Agent','Total approved','Total book amount','Unclaimed','Net sales volume']);
   c.loanAgents.forEach(function(a){
     var rr=rows.filter(function(r){return r.agentId===a.id});if(!rr.length)return;
@@ -531,7 +549,7 @@ function addBtn(label,col){return '<button class="btn gold" data-act="add" data-
 /* ---------- agency: approvals ---------- */
 function bankSummary(rows,ag){
   var by={};
-  rows.forEach(function(r){var k=bankName(r);var o=by[k]||(by[k]={ap:0,bk:0,nt:0});o.ap+=num(r.approved);o.bk+=num(r.booked);o.nt+=comm(r,ag).net});
+  rows.forEach(function(r){var k=bankName(r);var o=by[k]||(by[k]={ap:0,bk:0,nt:0,key:r.bankId||('n'+String(k).toLowerCase().replace(/[^a-z0-9]/g,''))});o.ap+=num(r.approved);o.bk+=num(r.booked);o.nt+=comm(r,ag).net});
   var keys=Object.keys(by).sort(function(a,b){return by[b].bk-by[a].bk});
   return{by:by,keys:keys,ap:sum(keys,function(k){return by[k].ap}),bk:sum(keys,function(k){return by[k].bk}),nt:sum(keys,function(k){return by[k].nt})};
 }
@@ -551,10 +569,15 @@ function vApp(ag){
   var foot=rows.length?'<tr><td colspan="3">'+rows.length+' '+(rows.length===1?'entry':'entries')+'</td><td class="n">'+fmt(sum(rows,function(r){return num(r.approved)}))+'</td><td class="n">'+fmt(sum(rows,function(r){return num(r.booked)}))+'</td><td colspan="4"></td></tr>':'';
   h+=tbl([['Date approved'],['Agent'],['Client'],['Approved',1],['Booked',1],['Bank'],['Loan type'],['Status'],['Actions']],body,foot,'No approvals in this period. Tap Add entry to encode one.',900);
   var bs=bankSummary(rows,ag);
-  var brow=bs.keys.map(function(k){var o=bs.by[k];return '<tr><td>'+esc(k)+'</td><td class="n">'+fmt(o.ap)+'</td><td class="n">'+fmt(o.bk)+'</td><td class="n">'+fmt(o.nt)+'</td></tr>'}).join('');
-  var bfoot=bs.keys.length?'<tr><td>Total</td><td class="n">'+fmt(bs.ap)+'</td><td class="n">'+fmt(bs.bk)+'</td><td class="n">'+fmt(bs.nt)+'</td></tr>':'';
-  h+=secHead(AG[ag]+' summary by bank')+tbl([['Bank name'],['Total approval',1],['Total booked',1],['Total net commission',1]],brow,bfoot,'No approvals in this period.',460);
-  h+='<p class="note">Net commission is after the tax deductions. This summary follows the filters above.</p>';
+  var ym=F.month?F.year+'-'+pad(F.month):'';
+  var brow=bs.keys.map(function(k){
+    var o=bs.by[k],rk=ag+'|'+ym+'|'+o.key;
+    var cell=F.month?'<input type="date" class="dt" data-recv="'+esc(rk)+'" value="'+esc(S.cfg.recv[rk]||'')+'" aria-label="Date commission received for '+esc(k)+'">':'<span class="hint">Pick a month</span>';
+    return '<tr><td data-l="Bank name">'+esc(k)+'</td><td class="n" data-l="Total approval">'+fmt(o.ap)+'</td><td class="n" data-l="Total booked">'+fmt(o.bk)+'</td><td class="n" data-l="Total net commission">'+fmt(o.nt)+'</td><td data-l="Date commission received">'+cell+'</td></tr>';
+  }).join('');
+  var bfoot=bs.keys.length?'<tr><td data-l="Bank name">Total</td><td class="n" data-l="Total approval">'+fmt(bs.ap)+'</td><td class="n" data-l="Total booked">'+fmt(bs.bk)+'</td><td class="n" data-l="Total net commission">'+fmt(bs.nt)+'</td><td></td></tr>':'';
+  h+=secHead(AG[ag]+' summary by bank')+tbl([['Bank name'],['Total approval',1],['Total booked',1],['Total net commission',1],['Date commission received']],brow,bfoot,'No approvals in this period.',680).replace('<div class="tw">','<div class="tw stack">');
+  h+='<p class="note">Net commission is after the tax deductions. The amounts follow the filters above. Pick a date on the calendar when '+AG[ag]+' pays the commission. It is saved per bank and per month.</p>';
   return h;
 }
 
@@ -965,6 +988,7 @@ document.addEventListener('change',function(e){
   else if(d.fa==='status'){S.fStatus=el.value;render()}
   else if(d.fa==='sel'){S.agentSel[d.ag]=el.value;render()}
   else if(d.fa==='attf'){S.att[d.k]=+el.value;render()}
+  else if(d.recv){if(el.value)S.cfg.recv[d.recv]=el.value;else delete S.cfg.recv[d.recv];Store.saveCfg();render()}
   else if(d.cfg){setPath(S.cfg,d.cfg,num(el.value));Store.saveCfg();render()}
   else if(d.cfgbool){setPath(S.cfg,d.cfgbool,el.checked);Store.saveCfg();render()}
   else if(d.list){var it=byId(S.cfg[d.list],d.id);if(it){it[d.field]=num(el.value);Store.saveCfg();render()}}
