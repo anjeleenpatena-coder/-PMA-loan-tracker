@@ -36,7 +36,7 @@ button,input,select{font:inherit;color:inherit}
 .tab{flex:none;border:0;background:transparent;color:var(--muted);padding:9px 15px;border-radius:9px;font-weight:600;font-size:14px;cursor:pointer;min-height:40px}
 .tab[aria-current="true"]{background:var(--gold-fill);color:var(--on-gold)}
 
-main{max-width:1120px;margin:0 auto;padding:14px 12px 70px}
+main{max-width:1280px;margin:0 auto;padding:14px 12px 70px}
 .sub{display:flex;gap:6px;overflow-x:auto;margin-bottom:12px;scrollbar-width:none}
 .chip{flex:none;border:1px solid var(--line);background:var(--panel);border-radius:999px;padding:7px 12px;font-weight:600;font-size:13.5px;cursor:pointer;min-height:36px}
 .chip[aria-current="true"]{border-color:var(--gold-fill);color:var(--gold);background:transparent;box-shadow:inset 0 0 0 1px var(--gold-fill)}
@@ -71,7 +71,8 @@ td.empty,p.empty{color:var(--muted);white-space:normal;padding:16px 12px}
 .acts{display:flex;gap:6px}
 .pill{display:inline-block;padding:2px 9px;border-radius:999px;font-size:12.5px;font-weight:600;border:1px solid currentColor;background:transparent;cursor:default}
 button.pill{cursor:pointer}
-.p-New{color:var(--gold)}.p-Pending{color:var(--warn)}.p-Done,.p-Paid,.p-Released{color:var(--good)}
+.p-New{color:var(--gold)}.p-Pending{color:var(--warn)}.p-Done,.p-Paid,.p-Released,.p-Received{color:var(--good)}
+.p-Waiting{color:var(--warn)}
 
 .ledger{background:var(--panel);border:1px solid var(--line);border-radius:12px;overflow:hidden}
 .ledger div{display:flex;justify-content:space-between;gap:12px;padding:11px 14px;border-bottom:1px solid var(--line)}
@@ -139,7 +140,16 @@ textarea{width:100%;min-height:200px;padding:10px;border:1px solid var(--line);b
   .tw.stack tfoot tr{border-bottom:0;background:#f7f0ff}
   .tw.stack tfoot td{background:transparent;border:0}
 }
-.dt{width:165px;min-height:36px;padding:5px 8px}
+.dt{width:150px;min-height:36px;padding:5px 8px}
+.rc{display:flex;flex-direction:column;align-items:flex-start;gap:4px}
+.tw.stack .rc{flex-direction:row;align-items:center;justify-content:flex-end;flex-wrap:wrap;gap:8px}
+td.wr{white-space:normal;min-width:100px}
+.ac{display:flex;flex-direction:column;align-items:flex-start;gap:6px}
+.pay{width:112px;min-height:34px;padding:4px 8px;font-weight:700;font-size:14px}
+.pay.pd{color:var(--good);border-color:#8bd6b0;background:#effaf4}
+.pay.up{color:var(--warn);border-color:#f0c98a;background:#fff8ec}
+.dot{display:inline-block;width:9px;height:9px;border-radius:50%;margin-right:7px}
+.d-ok{background:#3fbf87}.d-no{background:#ffb84d}
 select,input,textarea{color:var(--text)}
 .brand>div{min-width:0}
 .brand h1{white-space:nowrap}
@@ -417,16 +427,15 @@ function exportAgency(ag){
     ['Total approved amount',appr],['Total book amount',book],['Unclaimed loan amount',appr-book],['Total gross commission',G],['Total deductions',D],['Total net commission',N],[],
     ['Approvals and commission']];
   if(ag==='orc'){
-    out.push(['Date approved','Agent','Client','Approved amount','Book amount','Bank','Loan type','Status','Rate %','Gross commission','Tax %'+num(c.tax.orc),'Net commission']);
-    calc.forEach(function(x){var r=x.r;out.push([r.date,agentName(r),r.client,num(r.approved),num(r.booked),bankName(r),ltName(r),r.status,x.c.rate,x.c.gross,x.c.t1,x.c.net])});
+    out.push(['Date approved','Agent','Client','Approved amount','Book amount','Bank','Loan type','Status','Rate %','Gross commission','Tax %'+num(c.tax.orc),'Net commission','Commission status','Date commission received']);
+    calc.forEach(function(x){var r=x.r;out.push([r.date,agentName(r),r.client,num(r.approved),num(r.booked),bankName(r),ltName(r),r.status,x.c.rate,x.c.gross,x.c.t1,x.c.net,num(r.booked)>0?(r.payStatus==='PAID'?'PAID':'Unpaid'):'',r.recvDate||''])});
   }else{
-    out.push(['Date approved','Agent','Client','Approved amount','Book amount','Bank','Loan type','Status','Rate %','Gross commission','Tax %'+num(c.tax.dms1),'Commission','Tax %'+num(c.tax.dms2)+' on remainder','Net commission']);
-    calc.forEach(function(x){var r=x.r;out.push([r.date,agentName(r),r.client,num(r.approved),num(r.booked),bankName(r),ltName(r),r.status,x.c.rate,x.c.gross,x.c.t1,x.c.after,x.c.t2,x.c.net])});
+    out.push(['Date approved','Agent','Client','Approved amount','Book amount','Bank','Loan type','Status','Rate %','Gross commission','Tax %'+num(c.tax.dms1),'Commission','Tax %'+num(c.tax.dms2)+' on remainder','Net commission','Commission status','Date commission received']);
+    calc.forEach(function(x){var r=x.r;out.push([r.date,agentName(r),r.client,num(r.approved),num(r.booked),bankName(r),ltName(r),r.status,x.c.rate,x.c.gross,x.c.t1,x.c.after,x.c.t2,x.c.net,num(r.booked)>0?(r.payStatus==='PAID'?'PAID':'Unpaid'):'',r.recvDate||''])});
   }
   var bs=bankSummary(rows,ag);
-  var ym2=F.month?F.year+'-'+pad(F.month):'';
   out.push([],['Summary by bank'],['Bank name','Total approval','Total booked','Total net commission','Date commission received']);
-  bs.keys.forEach(function(k){out.push([k,bs.by[k].ap,bs.by[k].bk,bs.by[k].nt,ym2?(S.cfg.recv[ag+'|'+ym2+'|'+bs.by[k].key]||''):''])});
+  bs.keys.forEach(function(k){out.push([k,bs.by[k].ap,bs.by[k].bk,bs.by[k].nt,(function(){var ri=recvInfo(bs.by[k]);return ri.value||ri.hint})()])});
   out.push(['Total',bs.ap,bs.bk,bs.nt,'']);
   out.push([],['Agent performance'],['Agent','Total approved','Total book amount','Unclaimed','Net sales volume']);
   c.loanAgents.forEach(function(a){
@@ -445,7 +454,7 @@ function exportAgency(ag){
 function exportFin(){
   var f=finData();
   var out=[['Financial report'],['Period',periodLabel()],['Exported',today()],[],['Summary'],
-    ['ORC net commission',f.orc],['DMS net commission',f.dms],['Other income',f.oi],['Total gross commission',f.gross],['Total expenses',f.te],['Net commission',f.net],['Sharing commission (net divided by 2)',f.net/2],[],
+    ['ORC net commission',f.orc],['DMS net commission',f.dms],['Other income',f.oi],['Total gross commission',f.gross],['Total expenses',f.te],['Net commission',f.net],['Sharing commission (net divided by 2)',f.net/2],['ORC commission not yet PAID (not counted)',f.orcWait],['DMS commission not yet PAID (not counted)',f.dmsWait],[],
     ['Monthly breakdown for '+F.year],['Month','ORC net','DMS net','Other income','Gross','Expenses','Net','Sharing']];
   f.months.forEach(function(m){out.push([MN[m.m-1],m.o,m.d,m.i,m.g,m.e,m.n,m.n/2])});
   out.push(['Year total',f.T.o,f.T.d,f.T.i,f.T.g,f.T.e,f.T.n,f.T.n/2],[],['Other income'],['Date','Description','Category','Amount']);
@@ -512,8 +521,28 @@ function loanLeadCalc(r){
   var gross=vol*num(c.rate)/100,t1=gross*num(c.tax1)/100,after=gross-t1,t2=after*num(c.tax2)/100;
   return{nv:nv,vol:vol,gross:gross,t1:t1,after:after,t2:t2,net:after-t2,ded:t1+t2};
 }
+function agencyParts(ag,pred){
+  var got=0,wait=0;
+  S.data['approvals_'+ag].forEach(function(r){
+    if(!pred(r.date)||!(num(r.booked)>0))return;
+    var n=comm(r,ag).net;
+    if(r.payStatus==='PAID')got+=n;else wait+=n;
+  });
+  return{got:got,wait:wait};
+}
+function migrateRecv(){
+  var rv=S.cfg.recv||{},hasRv=Object.keys(rv).length>0;
+  ['orc','dms'].forEach(function(ag){
+    S.data['approvals_'+ag].forEach(function(r){
+      if(r.payStatus||!(num(r.booked)>0))return;
+      var dt=r.recvDate||rv[ag+'|'+String(r.date||'').slice(0,7)+'|'+bankKeyOf(r)];
+      if(dt)Store.put('approvals_'+ag,Object.assign({},r,{recvDate:dt,payStatus:'PAID'}));
+    });
+  });
+  if(hasRv){S.cfg.recv={};Store.saveCfg()}
+}
 function agencyNet(ag,pred){
-  var t=sum(S.data['approvals_'+ag].filter(function(r){return pred(r.date)&&num(r.booked)>0}),function(r){return comm(r,ag).net});
+  var t=agencyParts(ag,pred).got;
   if(S.cfg.includeLeads)t+=sum(S.data['leads_'+ag].filter(function(r){return pred(r.date)}),function(r){return leadCalc(r,ag).net});
   return t;
 }
@@ -547,37 +576,55 @@ function secHead(title,btn){return '<div class="sec"><h2>'+title+'</h2>'+(btn||'
 function addBtn(label,col){return '<button class="btn gold" data-act="add" data-col="'+col+'">'+label+'</button>'}
 
 /* ---------- agency: approvals ---------- */
+var bankKeyOf=function(r){return r.bankId||('n'+String(bankName(r)).toLowerCase().replace(/[^a-z0-9]/g,''))};
+function apprRows(ag){
+  var rows=S.data['approvals_'+ag].filter(function(r){return inPeriod(r.date)});
+  if(S.fAgent)rows=rows.filter(function(r){return r.agentId===S.fAgent});
+  if(S.fStatus)rows=rows.filter(function(r){return r.status===S.fStatus});
+  return rows;
+}
 function bankSummary(rows,ag){
   var by={};
-  rows.forEach(function(r){var k=bankName(r);var o=by[k]||(by[k]={ap:0,bk:0,nt:0,key:r.bankId||('n'+String(k).toLowerCase().replace(/[^a-z0-9]/g,''))});o.ap+=num(r.approved);o.bk+=num(r.booked);o.nt+=comm(r,ag).net});
+  rows.forEach(function(r){
+    var k=bankName(r);var o=by[k]||(by[k]={ap:0,bk:0,nt:0,key:bankKeyOf(r),n:0,got:0,paid:0,set:{}});
+    o.ap+=num(r.approved);o.bk+=num(r.booked);o.nt+=comm(r,ag).net;
+    if(num(r.booked)>0){o.n++;if(r.payStatus==='PAID')o.paid++;if(r.recvDate){o.got++;o.set[r.recvDate]=1}}
+  });
   var keys=Object.keys(by).sort(function(a,b){return by[b].bk-by[a].bk});
   return{by:by,keys:keys,ap:sum(keys,function(k){return by[k].ap}),bk:sum(keys,function(k){return by[k].bk}),nt:sum(keys,function(k){return by[k].nt})};
 }
+function recvInfo(o){
+  var ds=Object.keys(o.set),all=o.n>0&&o.got===o.n;
+  return{value:(all&&ds.length===1)?ds[0]:'',hint:(o.paid>0&&o.paid<o.n)?(o.paid+' of '+o.n+' PAID'):(all&&ds.length>1)?'Mixed dates':''};
+}
 function vApp(ag){
   var col='approvals_'+ag;
-  var rows=S.data[col].filter(function(r){return inPeriod(r.date)});
-  if(S.fAgent)rows=rows.filter(function(r){return r.agentId===S.fAgent});
-  if(S.fStatus)rows=rows.filter(function(r){return r.status===S.fStatus});
-  rows.sort(dateDesc);
+  var rows=apprRows(ag).sort(dateDesc);
   var h='<div class="fbar"><label>Agent<select data-fa="agent"><option value="">All agents</option>'+
     S.cfg.loanAgents.map(function(a){return '<option value="'+a.id+'" '+(S.fAgent===a.id?'selected':'')+'>'+esc(a.name)+'</option>'}).join('')+'</select></label>'+
     '<label>Status<select data-fa="status"><option value="">All statuses</option>'+['New','Pending','Done'].map(function(s){return '<option '+(S.fStatus===s?'selected':'')+'>'+s+'</option>'}).join('')+'</select></label></div>';
   h+=secHead(AG[ag]+' approvals',addBtn('Add entry',col));
   var body=rows.map(function(r){
-    return '<tr><td>'+dstr(r.date)+'</td><td>'+esc(agentName(r))+'</td><td>'+esc(r.client)+'</td><td class="n">'+fmt(r.approved)+'</td><td class="n">'+fmt(r.booked)+'</td><td>'+esc(bankName(r))+'</td><td>'+esc(ltName(r))+'</td><td>'+pill(r.status)+'</td><td>'+actions(col,r.id)+'</td></tr>';
+    var booked=num(r.booked)>0,paid=r.payStatus==='PAID';
+    var rc=booked?'<input type="date" class="dt" data-rrow="'+r.id+'" data-col="'+col+'" value="'+esc(r.recvDate||'')+'" aria-label="Date commission received for '+esc(r.client)+'">':'<span class="hint">No commission yet</span>';
+    var pay=booked?'<select class="pay '+(paid?'pd':'up')+'" data-pay="'+r.id+'" data-col="'+col+'" aria-label="Commission payment status for '+esc(r.client)+'"><option value="Unpaid"'+(paid?'':' selected')+'>Unpaid</option><option value="PAID"'+(paid?' selected':'')+'>PAID</option></select>':'';
+    var dot=booked?'<span class="dot '+(paid?'d-ok':'d-no')+'" title="'+(paid?'Commission PAID':'Commission not yet paid')+'"></span>':'';
+    return '<tr><td>'+dstr(r.date)+'</td><td class="wr">'+esc(agentName(r))+'</td><td>'+dot+esc(r.client)+'</td><td class="n">'+fmt(r.approved)+'</td><td class="n">'+fmt(r.booked)+'</td><td class="wr">'+esc(bankName(r))+'</td><td>'+esc(ltName(r))+'</td><td>'+pill(r.status)+'</td><td>'+rc+'</td><td><div class="ac">'+pay+actions(col,r.id)+'</div></td></tr>';
   }).join('');
-  var foot=rows.length?'<tr><td colspan="3">'+rows.length+' '+(rows.length===1?'entry':'entries')+'</td><td class="n">'+fmt(sum(rows,function(r){return num(r.approved)}))+'</td><td class="n">'+fmt(sum(rows,function(r){return num(r.booked)}))+'</td><td colspan="4"></td></tr>':'';
-  h+=tbl([['Date approved'],['Agent'],['Client'],['Approved',1],['Booked',1],['Bank'],['Loan type'],['Status'],['Actions']],body,foot,'No approvals in this period. Tap Add entry to encode one.',900);
+  var foot=rows.length?'<tr><td colspan="3">'+rows.length+' '+(rows.length===1?'entry':'entries')+'</td><td class="n">'+fmt(sum(rows,function(r){return num(r.approved)}))+'</td><td class="n">'+fmt(sum(rows,function(r){return num(r.booked)}))+'</td><td colspan="5"></td></tr>':'';
+  h+=tbl([['Date approved'],['Agent'],['Client'],['Approved',1],['Booked',1],['Bank'],['Loan type'],['Status'],['Date commission received'],['Actions']],body,foot,'No approvals in this period. Tap Add entry to encode one.',1150);
+  h+='<p class="note">Under Actions, choose PAID once '+AG[ag]+' has paid the commission for that client. Only PAID commission is counted in the Financial tab. Green dot means PAID. Amber dot means not yet paid. Choosing PAID fills today as the date received. You can change the date.</p>';
   var bs=bankSummary(rows,ag);
-  var ym=F.month?F.year+'-'+pad(F.month):'';
   var brow=bs.keys.map(function(k){
-    var o=bs.by[k],rk=ag+'|'+ym+'|'+o.key;
-    var cell=F.month?'<input type="date" class="dt" data-recv="'+esc(rk)+'" value="'+esc(S.cfg.recv[rk]||'')+'" aria-label="Date commission received for '+esc(k)+'">':'<span class="hint">Pick a month</span>';
+    var o=bs.by[k],cell;
+    if(!F.month)cell='<span class="hint">Pick a month</span>';
+    else if(!o.n)cell='<span class="hint">No booked loans</span>';
+    else{var ri=recvInfo(o);cell='<span class="rc">'+(ri.hint?'<span class="hint">'+ri.hint+'</span>':'')+'<input type="date" class="dt" data-rgrp="'+esc(o.key)+'" data-rag="'+ag+'" value="'+esc(ri.value)+'" aria-label="Date commission received for all booked clients of '+esc(k)+'"></span>'}
     return '<tr><td data-l="Bank name">'+esc(k)+'</td><td class="n" data-l="Total approval">'+fmt(o.ap)+'</td><td class="n" data-l="Total booked">'+fmt(o.bk)+'</td><td class="n" data-l="Total net commission">'+fmt(o.nt)+'</td><td data-l="Date commission received">'+cell+'</td></tr>';
   }).join('');
   var bfoot=bs.keys.length?'<tr><td data-l="Bank name">Total</td><td class="n" data-l="Total approval">'+fmt(bs.ap)+'</td><td class="n" data-l="Total booked">'+fmt(bs.bk)+'</td><td class="n" data-l="Total net commission">'+fmt(bs.nt)+'</td><td></td></tr>':'';
   h+=secHead(AG[ag]+' summary by bank')+tbl([['Bank name'],['Total approval',1],['Total booked',1],['Total net commission',1],['Date commission received']],brow,bfoot,'No approvals in this period.',680).replace('<div class="tw">','<div class="tw stack">');
-  h+='<p class="note">Net commission is after the tax deductions. The amounts follow the filters above. Pick a date on the calendar when '+AG[ag]+' pays the commission. It is saved per bank and per month.</p>';
+  h+='<p class="note">Net commission is after the tax deductions. The amounts follow the filters above. Picking a date here sets the date received for all booked clients of that bank. It does not mark them PAID. Use the PAID dropdown for that.</p>';
   return h;
 }
 
@@ -733,7 +780,7 @@ function finData(){
     T.o+=o;T.d+=d;T.i+=i;T.g+=g;T.e+=e;T.n+=n;
     months.push({m:m,o:o,d:d,i:i,g:g,e:e,n:n});
   }
-  return{orc:orc,dms:dms,inc:inc,exp:exp,oi:oi,te:te,gross:orc+dms+oi,net:orc+dms+oi-te,months:months,T:T};
+  return{orc:orc,dms:dms,orcWait:agencyParts('orc',P).wait,dmsWait:agencyParts('dms',P).wait,inc:inc,exp:exp,oi:oi,te:te,gross:orc+dms+oi,net:orc+dms+oi-te,months:months,T:T};
 }
 function finView(){
   var f=finData();
@@ -741,6 +788,7 @@ function finView(){
   h+='<div class="ledger"><div><span>ORC net commission</span><span>'+peso(f.orc)+'</span></div><div><span>DMS net commission</span><span>'+peso(f.dms)+'</span></div><div><span>Other income</span><span>'+peso(f.oi)+'</span></div>'+
     '<div class="tot"><span>Total gross commission</span><span>'+peso(f.gross)+'</span></div><div class="neg"><span>Less: total expenses</span><span>'+peso(f.te)+'</span></div>'+
     '<div class="tot"><span>Net commission</span><span>'+peso(f.net)+'</span></div><div class="share"><span>Sharing commission (net divided by 2)</span><span>'+peso(f.net/2)+'</span></div></div>';
+  h+='<p class="note">Only commission marked PAID is counted here. Not yet paid: ORC '+peso(f.orcWait)+', DMS '+peso(f.dmsWait)+'.</p>';
   if(S.cfg.includeLeads)h+='<p class="note">Leads agent commissions are included in the ORC and DMS lines.</p>';
   h+=secHead('Monthly breakdown for '+F.year);
   var rows=f.months.map(function(x){return '<tr'+(F.month===x.m?' style="background:var(--panel2)"':'')+'><td>'+MN[x.m-1]+'</td><td class="n">'+fmt(x.o)+'</td><td class="n">'+fmt(x.d)+'</td><td class="n">'+fmt(x.i)+'</td><td class="n">'+fmt(x.g)+'</td><td class="n">'+fmt(x.e)+'</td><td class="n">'+fmt(x.n)+'</td><td class="n">'+fmt(x.n/2)+'</td></tr>'}).join('');
@@ -835,11 +883,13 @@ function approvalForm(col,rec){
     inF('Date approved','date',r.date,'date')+inF('Client full name','client',r.client||'','text')+
     inF('Approved amount (₱)','approved',rec?r.approved:'','num')+inF('Book amount (₱)','booked',rec?r.booked:'','num')+
     selF('Bank','bankId',bankOpts(),r.bankId)+selF('Loan type','loanTypeId',ltOpts(r.bankId),r.loanTypeId)+
-    selF('Status','status',[['New','New'],['Pending','Pending'],['Done','Done']],r.status);
+    selF('Status','status',[['New','New'],['Pending','Pending'],['Done','Done']],r.status)+
+    selF('Commission payment','payStatus',[['Unpaid','Unpaid'],['PAID','PAID']],r.payStatus==='PAID'?'PAID':'Unpaid')+
+    inF('Date commission received','recvDate',r.recvDate||'','date');
   openModal({title:rec?'Edit approval':'Add approval',body:body,onOpen:function(root){wireBank(root)},onSave:function(v){
     if(!v.agentId||!v.date||!v.client.trim())return{error:'Choose an agent, a date, and enter the client name.'};
     var a=byId(c.loanAgents,v.agentId),b=byId(c.banks,v.bankId),t=byId(c.loanTypes,v.loanTypeId);
-    Store.put(col,{id:rec?rec.id:uid(),date:v.date,agentId:v.agentId,agentName:a?a.name:(rec?rec.agentName:''),client:v.client.trim(),approved:num(v.approved),booked:num(v.booked),bankId:v.bankId,bankName:b?b.name:'',loanTypeId:v.loanTypeId,loanTypeName:t?t.name:'',status:v.status,ts:rec?rec.ts:Date.now()});
+    Store.put(col,{id:rec?rec.id:uid(),date:v.date,agentId:v.agentId,agentName:a?a.name:(rec?rec.agentName:''),client:v.client.trim(),approved:num(v.approved),booked:num(v.booked),bankId:v.bankId,bankName:b?b.name:'',loanTypeId:v.loanTypeId,loanTypeName:t?t.name:'',status:v.status,payStatus:v.payStatus==='PAID'?'PAID':'Unpaid',recvDate:v.recvDate||(v.payStatus==='PAID'?today():''),ts:rec?rec.ts:Date.now()});
   }});
 }
 function leadForm(col,rec){
@@ -929,6 +979,7 @@ function listForm(key,rec){
 
 /* ---------- render + events ---------- */
 function render(){
+  if(S.loaded&&!S.migrated){S.migrated=true;setTimeout(migrateRecv,0)}
   try{
     var t=[['orc','ORC'],['dms','DMS'],['fin','Financial'],['att','Attendance'],['set','Settings']];
     var nav=$('#nav');
@@ -988,7 +1039,9 @@ document.addEventListener('change',function(e){
   else if(d.fa==='status'){S.fStatus=el.value;render()}
   else if(d.fa==='sel'){S.agentSel[d.ag]=el.value;render()}
   else if(d.fa==='attf'){S.att[d.k]=+el.value;render()}
-  else if(d.recv){if(el.value)S.cfg.recv[d.recv]=el.value;else delete S.cfg.recv[d.recv];Store.saveCfg();render()}
+  else if(d.pay){var pr=byId(S.data[d.col],d.pay);if(pr){var pv=el.value==='PAID'?'PAID':'Unpaid';Store.put(d.col,Object.assign({},pr,{payStatus:pv,recvDate:pv==='PAID'?(pr.recvDate||today()):''}))}}
+  else if(d.rrow){var rr=byId(S.data[d.col],d.rrow);if(rr)Store.put(d.col,Object.assign({},rr,{recvDate:el.value||''}))}
+  else if(d.rgrp){apprRows(d.rag).filter(function(r){return num(r.booked)>0&&bankKeyOf(r)===d.rgrp}).forEach(function(r){Store.put('approvals_'+d.rag,Object.assign({},r,{recvDate:el.value||''}))})}
   else if(d.cfg){setPath(S.cfg,d.cfg,num(el.value));Store.saveCfg();render()}
   else if(d.cfgbool){setPath(S.cfg,d.cfgbool,el.checked);Store.saveCfg();render()}
   else if(d.list){var it=byId(S.cfg[d.list],d.id);if(it){it[d.field]=num(el.value);Store.saveCfg();render()}}
