@@ -144,8 +144,10 @@ textarea{width:100%;min-height:200px;padding:10px;border:1px solid var(--line);b
 .rc{display:flex;flex-direction:column;align-items:flex-start;gap:4px}
 .tw.stack .rc{flex-direction:row;align-items:center;justify-content:flex-end;flex-wrap:wrap;gap:8px}
 td.wr{white-space:normal;min-width:100px}
+.warn{background:#fff6dd;border:1px solid #f0d58a;color:#6b4a00;border-radius:12px;padding:10px 12px;margin:10px 0;font-size:14px;display:flex;gap:10px;align-items:center;justify-content:space-between;flex-wrap:wrap}
 .ac{display:flex;flex-direction:column;align-items:flex-start;gap:6px}
 .pay{width:112px;min-height:34px;padding:4px 8px;font-weight:700;font-size:14px}
+.pay.wide{width:190px}
 .pay.pd{color:var(--good);border-color:#8bd6b0;background:#effaf4}
 .pay.up{color:var(--warn);border-color:#f0c98a;background:#fff8ec}
 .dot{display:inline-block;width:9px;height:9px;border-radius:50%;margin-right:7px}
@@ -245,7 +247,7 @@ th,tfoot td{background:#f7f0ff}
 'use strict';
 
 /* ---------- helpers ---------- */
-var COLS=['approvals_orc','approvals_dms','leads_orc','leads_dms','loanleads_orc','loanleads_dms','income','expenses','attendance'];
+var COLS=['approvals_orc','approvals_dms','leads_orc','leads_dms','loanleads_orc','loanleads_dms','income','expenses','attendance','turnins'];
 var AG={orc:'ORC',dms:'DMS'};
 var MN=['January','February','March','April','May','June','July','August','September','October','November','December'];
 var M3=MN.map(function(m){return m.slice(0,3)});
@@ -577,6 +579,13 @@ function addBtn(label,col){return '<button class="btn gold" data-act="add" data-
 
 /* ---------- agency: approvals ---------- */
 var bankKeyOf=function(r){return r.bankId||('n'+String(bankName(r)).toLowerCase().replace(/[^a-z0-9]/g,''))};
+function rateWarn(rows,ag){
+  var miss={};
+  rows.forEach(function(r){if(num(r.booked)>0&&rateFor(r,ag)===0)miss[ltName(r)==='-'?'(no loan type chosen)':ltName(r)]=1});
+  var k=Object.keys(miss);
+  if(!k.length)return '';
+  return '<div class="warn"><span>No '+AG[ag]+' commission rate is set for <b>'+k.map(esc).join(', ')+'</b>. Their commission shows 0.00 until you set a rate (booked amount x rate).</span><button class="btn sm gold" data-act="goto-rates" data-ag="'+ag+'">Set commission rates</button></div>';
+}
 function apprRows(ag){
   var rows=S.data['approvals_'+ag].filter(function(r){return inPeriod(r.date)});
   if(S.fAgent)rows=rows.filter(function(r){return r.agentId===S.fAgent});
@@ -620,10 +629,10 @@ function vApp(ag){
     if(!F.month)cell='<span class="hint">Pick a month</span>';
     else if(!o.n)cell='<span class="hint">No booked loans</span>';
     else{var ri=recvInfo(o);cell='<span class="rc">'+(ri.hint?'<span class="hint">'+ri.hint+'</span>':'')+'<input type="date" class="dt" data-rgrp="'+esc(o.key)+'" data-rag="'+ag+'" value="'+esc(ri.value)+'" aria-label="Date commission received for all booked clients of '+esc(k)+'"></span>'}
-    return '<tr><td data-l="Bank name">'+esc(k)+'</td><td class="n" data-l="Total approval">'+fmt(o.ap)+'</td><td class="n" data-l="Total booked">'+fmt(o.bk)+'</td><td class="n" data-l="Total net commission">'+fmt(o.nt)+'</td><td data-l="Date commission received">'+cell+'</td></tr>';
+    return '<tr><td data-l="Bank name">'+esc(k)+'</td><td class="n" data-l="Total approval">'+fmt(o.ap)+'</td><td class="n" data-l="Total booked">'+fmt(o.bk)+'</td><td class="n" data-l="Total net commission">'+fmt(o.nt)+(o.bk>0&&o.nt===0?' <span class="pill p-Waiting" title="No commission rate set">no rate</span>':'')+'</td><td data-l="Date commission received">'+cell+'</td></tr>';
   }).join('');
   var bfoot=bs.keys.length?'<tr><td data-l="Bank name">Total</td><td class="n" data-l="Total approval">'+fmt(bs.ap)+'</td><td class="n" data-l="Total booked">'+fmt(bs.bk)+'</td><td class="n" data-l="Total net commission">'+fmt(bs.nt)+'</td><td></td></tr>':'';
-  h+=secHead(AG[ag]+' summary by bank')+tbl([['Bank name'],['Total approval',1],['Total booked',1],['Total net commission',1],['Date commission received']],brow,bfoot,'No approvals in this period.',680).replace('<div class="tw">','<div class="tw stack">');
+  h+=rateWarn(rows,ag)+secHead(AG[ag]+' summary by bank')+tbl([['Bank name'],['Total approval',1],['Total booked',1],['Total net commission',1],['Date commission received']],brow,bfoot,'No approvals in this period.',680).replace('<div class="tw">','<div class="tw stack">');
   h+='<p class="note">Net commission is after the tax deductions. The amounts follow the filters above. Picking a date here sets the date received for all booked clients of that bank. It does not mark them PAID. Use the PAID dropdown for that.</p>';
   return h;
 }
@@ -635,7 +644,7 @@ function vCom(ag){
   var calc=rows.map(function(r){return{r:r,c:comm(r,ag)}});
   var G=sum(calc,function(x){return x.c.gross}),D=sum(calc,function(x){return x.c.ded}),N=sum(calc,function(x){return x.c.net});
   var h='<div class="stats">'+stat('Total gross commission',peso(G))+stat('Total deductions',peso(D))+stat('Total net commission',peso(N),true)+'</div>';
-  h+=secHead(AG[ag]+' commission breakdown');
+  h+=rateWarn(rows,ag)+secHead(AG[ag]+' commission breakdown');
   var hs,body,foot;
   if(ag==='orc'){
     hs=[['Client'],['Bank'],['Loan type'],['Book amount',1],['Rate',1],['Gross commission',1],['Tax '+num(c.tax.orc)+'%',1],['Net commission',1]];
@@ -799,6 +808,72 @@ function finView(){
   return h;
 }
 
+/* ---------- LA Carded turn in referral ---------- */
+function tiStats(rows){
+  var by={};
+  rows.forEach(function(r){
+    var k=r.agentId||('n:'+(r.agentName||'?'));
+    var o=by[k]||(by[k]={name:agentName(r),n:0,cp:0,paid:0});
+    o.n++;if(r.proof==='Complete proof')o.cp++;if(r.paidDate)o.paid+=num(r.amount);
+  });
+  var list=Object.keys(by).map(function(k){return by[k]}).sort(function(a,b){return b.n-a.n||b.paid-a.paid||a.name.localeCompare(b.name)});
+  var top=list.length?list.filter(function(x){return x.n===list[0].n}):[];
+  var paid=sum(rows.filter(function(r){return r.paidDate}),function(r){return num(r.amount)});
+  var all=sum(rows,function(r){return num(r.amount)});
+  return{list:list,top:top,paid:paid,unpaid:all-paid,all:all,n:rows.length};
+}
+function topText(t){return t.top.length?t.top.map(function(x){return x.name}).join(' and ')+' ('+t.top[0].n+(t.top[0].n===1?' referral':' referrals')+')':'-'}
+function tiView(){
+  var col='turnins';
+  var rows=S.data[col].filter(function(r){return inPeriod(r.date)}).sort(dateDesc);
+  var t=tiStats(rows);
+  var h=filterBar()+'<div class="expbar"><button class="btn sm" data-act="export" data-what="ti">Export turn in report (CSV)</button></div>';
+  h+=secHead('LA Carded Turn In Referral',addBtn('Add entry',col));
+  var body=rows.map(function(r){
+    var cp=r.proof==='Complete proof';
+    var dot='<span class="dot '+(r.paidDate?'d-ok':'d-no')+'" title="'+(r.paidDate?'Incentive paid':'Incentive not yet paid')+'"></span>';
+    return '<tr><td>'+dstr(r.date)+'</td><td>'+dot+esc(r.client)+'</td><td class="wr">'+esc(agentName(r))+'</td><td class="wr">'+esc(r.bankName||'-')+'</td>'+
+      '<td><select class="pay wide '+(cp?'pd':'up')+'" data-tproof="'+r.id+'" aria-label="Proof for '+esc(r.client)+'"><option'+(cp?' selected':'')+'>Complete proof</option><option'+(cp?'':' selected')+'>Incomplete proof</option></select></td>'+
+      '<td class="n">'+fmt(r.amount)+'</td>'+
+      '<td><input type="date" class="dt" data-tpaid="'+r.id+'" value="'+esc(r.paidDate||'')+'" aria-label="Paid date for '+esc(r.client)+'"></td><td>'+actions(col,r.id)+'</td></tr>';
+  }).join('');
+  var foot=rows.length?'<tr><td colspan="5">'+rows.length+' '+(rows.length===1?'referral':'referrals')+'</td><td class="n">'+fmt(t.all)+'</td><td colspan="2"></td></tr>':'';
+  h+=tbl([['Turn in date'],['Client full name'],['Loan agent'],['Bank'],['Proof'],['Turn in incentive',1],['Paid date'],['Actions']],body,foot,'No turn in referrals in this period. Tap Add entry to encode one.',1000);
+  h+='<p class="note">Green dot means the incentive is paid. Amber dot means not yet paid. Pick the paid date on the calendar once the incentive is paid.</p>';
+  h+=secHead('Summary');
+  h+='<div class="stats">'+stat('Total turn in incentives paid',peso(t.paid),true)+stat('Incentives not yet paid',peso(t.unpaid))+stat('Total referrals',t.n)+stat('Top agent (most referrals)',esc(topText(t)))+'</div>';
+  var rr=t.list.map(function(x,i){return '<tr><td data-l="Rank">'+(i+1)+'</td><td data-l="Loan agent">'+esc(x.name)+'</td><td class="n" data-l="Referrals">'+x.n+'</td><td class="n" data-l="Complete proof">'+x.cp+'</td><td class="n" data-l="Incentives paid">'+fmt(x.paid)+'</td></tr>'}).join('');
+  var rf=t.list.length?'<tr><td></td><td data-l="Total">Total</td><td class="n" data-l="Referrals">'+t.n+'</td><td class="n" data-l="Complete proof">'+sum(t.list,function(x){return x.cp})+'</td><td class="n" data-l="Incentives paid">'+fmt(t.paid)+'</td></tr>':'';
+  h+='<div style="height:10px"></div>'+tbl([['Rank'],['Loan agent'],['Referrals',1],['Complete proof',1],['Incentives paid',1]],rr,rf,'No referrals in this period.',480);
+  return h;
+}
+function tiForm(rec){
+  var c=S.cfg,r=rec||{date:today(),agentId:'',bankName:'',proof:'Complete proof',amount:'',paidDate:''};
+  var names={};c.banks.forEach(function(b){names[b.name]=1});S.data.turnins.forEach(function(x){if(x.bankName)names[x.bankName]=1});
+  var warn=!c.loanAgents.length?'<p class="hint">Add loan agents in Settings first.</p>':'';
+  var body=warn+inF('Turn in date','date',r.date,'date')+inF('Client full name','client',r.client||'','text')+
+    selF('Loan agent','agentId',[['','Select loan agent']].concat(c.loanAgents.map(function(a){return [a.id,a.name]})),r.agentId)+
+    '<label class="fld"><span>Bank name</span><input name="bankName" list="tibanks" value="'+esc(r.bankName||'')+'" autocomplete="off"><datalist id="tibanks">'+Object.keys(names).map(function(n){return '<option value="'+esc(n)+'"></option>'}).join('')+'</datalist></label>'+
+    selF('Proof','proof',[['Complete proof','Complete proof'],['Incomplete proof','Incomplete proof']],r.proof==='Incomplete proof'?'Incomplete proof':'Complete proof')+
+    inF('Turn in incentive amount (₱)','amount',rec?r.amount:'','num')+
+    inF('Paid date (leave blank if not yet paid)','paidDate',r.paidDate||'','date');
+  openModal({title:rec?'Edit turn in referral':'Add turn in referral',body:body,onSave:function(v){
+    if(!v.agentId||!v.date||!v.client.trim())return{error:'Choose a loan agent, a turn in date, and enter the client name.'};
+    var a=byId(c.loanAgents,v.agentId);
+    Store.put('turnins',{id:rec?rec.id:uid(),date:v.date,client:v.client.trim(),agentId:v.agentId,agentName:a?a.name:(rec?rec.agentName:''),bankName:v.bankName.trim(),proof:v.proof==='Incomplete proof'?'Incomplete proof':'Complete proof',amount:num(v.amount),paidDate:v.paidDate||'',ts:rec?rec.ts:Date.now()});
+  }});
+}
+function exportTi(){
+  var rows=S.data.turnins.filter(function(r){return inPeriod(r.date)}).sort(dateDesc),t=tiStats(rows);
+  var out=[['LA Carded Turn In Referral report'],['Period',periodLabel()],['Exported',today()],[],['Summary'],
+    ['Total turn in incentives paid',t.paid],['Incentives not yet paid',t.unpaid],['Total referrals',t.n],['Top agent (most referrals)',topText(t)],[],
+    ['Referrals'],['Turn in date','Client full name','Loan agent','Bank','Proof','Turn in incentive','Paid date']];
+  rows.forEach(function(r){out.push([r.date,r.client,agentName(r),r.bankName||'',r.proof||'',num(r.amount),r.paidDate||''])});
+  out.push([],['Referrals by loan agent'],['Rank','Loan agent','Referrals','Complete proof','Incentives paid']);
+  t.list.forEach(function(x,i){out.push([i+1,x.name,x.n,x.cp,x.paid])});
+  return saveFile('loan-tracker-turnin-'+periodSlug()+'.csv',toCsv(out));
+}
+
 /* ---------- attendance ---------- */
 function attView(){
   var A=S.att;
@@ -955,6 +1030,7 @@ function openForm(col,rec){
   else if(col.indexOf('loanleads_')===0)loanLeadForm(col,rec);
   else if(col==='income'||col==='expenses')moneyForm(col,rec);
   else if(col==='attendance')attForm(rec);
+  else if(col==='turnins')tiForm(rec);
 }
 function listForm(key,rec){
   var L=LISTS[key];
@@ -981,7 +1057,7 @@ function listForm(key,rec){
 function render(){
   if(S.loaded&&!S.migrated){S.migrated=true;setTimeout(migrateRecv,0)}
   try{
-    var t=[['orc','ORC'],['dms','DMS'],['fin','Financial'],['att','Attendance'],['set','Settings']];
+    var t=[['orc','ORC'],['dms','DMS'],['ti','LA Carded'],['fin','Financial'],['att','Attendance'],['set','Settings']];
     var nav=$('#nav');
     if(!nav.children.length)nav.innerHTML=t.map(function(x){return '<button class="tab" data-act="view" data-v="'+x[0]+'">'+x[1]+'</button>'}).join('');
     Array.prototype.forEach.call(nav.children,function(b){if(b.dataset.v===S.view)b.setAttribute('aria-current','true');else b.removeAttribute('aria-current')});
@@ -992,6 +1068,7 @@ function render(){
     var h;
     if(!S.loaded)h='<p class="empty">Connecting to your database...</p>';
     else if(S.view==='orc'||S.view==='dms')h=agencyView(S.view);
+    else if(S.view==='ti')h=tiView();
     else if(S.view==='fin')h=finView();
     else if(S.view==='att')h=attView();
     else h=setView();
@@ -1015,11 +1092,12 @@ document.addEventListener('click',function(e){
     case 's-add':listForm(d.list,null);break;
     case 's-edit':listForm(d.list,byId(S.cfg[d.list],d.id));break;
     case 's-del':ask('Delete this item? Existing records keep the name they were saved with.',function(){S.cfg[d.list]=S.cfg[d.list].filter(function(x){return x.id!==d.id});Store.saveCfg();render()});break;
+    case 'goto-rates':S.view=d.ag;S.sub[d.ag]='com';S.open['rates-'+d.ag]=true;render();window.scrollTo(0,0);break;
     case 'close':closeModal();break;
     case 'lock':lockNow();break;
     case 'import':var imf=$('#impfile');if(imf)imf.click();break;
     case 'unlock':tryUnlock();break;
-    case 'export':if(d.what==='fin')exportFin();else exportAgency(d.what);break;
+    case 'export':if(d.what==='fin')exportFin();else if(d.what==='ti')exportTi();else exportAgency(d.what);break;
     case 'backup':exportBackup();break;
     case 'pin-change':pinForm();break;
     case 'save':
@@ -1039,6 +1117,8 @@ document.addEventListener('change',function(e){
   else if(d.fa==='status'){S.fStatus=el.value;render()}
   else if(d.fa==='sel'){S.agentSel[d.ag]=el.value;render()}
   else if(d.fa==='attf'){S.att[d.k]=+el.value;render()}
+  else if(d.tproof){var tp=byId(S.data.turnins,d.tproof);if(tp)Store.put('turnins',Object.assign({},tp,{proof:el.value==='Incomplete proof'?'Incomplete proof':'Complete proof'}))}
+  else if(d.tpaid){var tq=byId(S.data.turnins,d.tpaid);if(tq)Store.put('turnins',Object.assign({},tq,{paidDate:el.value||''}))}
   else if(d.pay){var pr=byId(S.data[d.col],d.pay);if(pr){var pv=el.value==='PAID'?'PAID':'Unpaid';Store.put(d.col,Object.assign({},pr,{payStatus:pv,recvDate:pv==='PAID'?(pr.recvDate||today()):''}))}}
   else if(d.rrow){var rr=byId(S.data[d.col],d.rrow);if(rr)Store.put(d.col,Object.assign({},rr,{recvDate:el.value||''}))}
   else if(d.rgrp){apprRows(d.rag).filter(function(r){return num(r.booked)>0&&bankKeyOf(r)===d.rgrp}).forEach(function(r){Store.put('approvals_'+d.rag,Object.assign({},r,{recvDate:el.value||''}))})}
