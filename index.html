@@ -506,17 +506,23 @@ function nvFor(r){
   var b=byId(S.cfg.banks,r.bankId);
   return b&&b.netVolume!==null&&b.netVolume!==undefined&&b.netVolume!==''?num(b.netVolume):100;
 }
-function taxes(gross,ag){
+function isEsquire(r){
+  if(!r)return false;
+  var b=byId(S.cfg.banks,r.bankId),t=byId(S.cfg.loanTypes,r.loanTypeId);
+  return /esquire/i.test((b?b.name:'')+' '+(t?t.name:(r.loanTypeName||'')));
+}
+function taxes(gross,ag,r){
   var c=S.cfg;
-  var t1=gross*num(ag==='orc'?c.tax.orc:c.tax.dms1)/100;
+  var noTax=ag==='orc'&&isEsquire(r);
+  var t1=noTax?0:gross*num(ag==='orc'?c.tax.orc:c.tax.dms1)/100;
   var after=gross-t1;
   var t2=ag==='dms'?after*num(c.tax.dms2)/100:0;
   return{gross:gross,t1:t1,after:after,t2:t2,net:after-t2,ded:t1+t2};
 }
-function comm(r,ag){var rate=rateFor(r,ag);var o=taxes(num(r.booked)*rate/100,ag);o.rate=rate;return o}
+function comm(r,ag){var rate=rateFor(r,ag);var o=taxes(num(r.booked)*rate/100,ag,r);o.rate=rate;return o}
 function leadCalc(r,ag){
   var nv=nvFor(r);var vol=num(r.booked)*nv/100;
-  var o=taxes(vol*num(S.cfg.leadsRate[ag])/100,ag);o.nv=nv;o.vol=vol;return o;
+  var o=taxes(vol*num(S.cfg.leadsRate[ag])/100,ag,r);o.nv=nv;o.vol=vol;return o;
 }
 function loanLeadCalc(r){
   var c=S.cfg.loanLeads,nv=nvFor(r),vol=num(r.booked)*nv/100;
@@ -633,7 +639,7 @@ function vApp(ag){
   }).join('');
   var bfoot=bs.keys.length?'<tr><td data-l="Bank name">Total</td><td class="n" data-l="Total approval">'+fmt(bs.ap)+'</td><td class="n" data-l="Total booked">'+fmt(bs.bk)+'</td><td class="n" data-l="Total net commission">'+fmt(bs.nt)+'</td><td></td></tr>':'';
   h+=rateWarn(rows,ag)+secHead(AG[ag]+' summary by bank')+tbl([['Bank name'],['Total approval',1],['Total booked',1],['Total net commission',1],['Date commission received']],brow,bfoot,'No approvals in this period.',680).replace('<div class="tw">','<div class="tw stack">');
-  h+='<p class="note">Net commission is after the tax deductions. The amounts follow the filters above. Picking a date here sets the date received for all booked clients of that bank. It does not mark them PAID. Use the PAID dropdown for that.</p>';
+  h+='<p class="note">Net commission is after the tax deductions. ORC Esquire has no tax. The amounts follow the filters above. Picking a date here sets the date received for all booked clients of that bank. It does not mark them PAID. Use the PAID dropdown for that.</p>';
   return h;
 }
 
