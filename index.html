@@ -531,20 +531,25 @@ function loanLeadCalc(r){
 }
 /* Commission month = month the commission was received (falls back to approval date). */
 function paidOn(r){return r.recvDate||r.date}
-function periodStart(){return F.year+'-'+(F.month?pad(F.month):'01')+'-'+(F.month&&F.week?pad((F.week-1)*7+1):'01')}
 function periodEnd(){
   if(!F.month)return F.year+'-12-31';
   var last=new Date(F.year,F.month,0).getDate();
   var e=F.week?(F.week===5?last:Math.min(last,F.week*7)):last;
   return F.year+'-'+pad(F.month)+'-'+pad(e);
 }
+/* Previous calendar month start (carry-over window is one month only). */
+function prevMonthStart(){
+  if(!F.month)return F.year+'-01-01';
+  var y=F.month===1?F.year-1:F.year,m=F.month===1?12:F.month-1;
+  return y+'-'+pad(m)+'-01';
+}
 function agencyParts(ag,pred){
-  var got=0,wait=0,end=periodEnd();
+  var got=0,wait=0,end=periodEnd(),from=prevMonthStart();
   S.data['approvals_'+ag].forEach(function(r){
     if(!(num(r.booked)>0))return;
     var n=comm(r,ag).net;
     if(r.payStatus==='PAID'){if(pred(paidOn(r)))got+=n}
-    else if(r.date&&r.date<=end)wait+=n;
+    else if(r.date&&r.date>=from&&r.date<=end)wait+=n;
   });
   return{got:got,wait:wait};
 }
@@ -558,9 +563,9 @@ function carryKind(r){
 }
 function carryRows(ag){
   if(!F.month)return [];
-  var start=periodStart();
+  var start=F.year+'-'+pad(F.month)+'-01',from=prevMonthStart();
   return S.data['approvals_'+ag].filter(function(r){
-    if(!r.date||r.date>=start)return false;
+    if(!r.date||r.date<from||r.date>=start)return false;
     if(S.fAgent&&r.agentId!==S.fAgent)return false;
     return !!carryKind(r);
   }).sort(dateDesc);
@@ -667,10 +672,10 @@ function vApp(ag){
       return '<tr><td>'+dstr(r.date)+'</td><td class="wr">'+esc(agentName(r))+'</td><td>'+dot+esc(r.client)+'</td><td class="n">'+fmt(r.approved)+'</td><td class="n">'+fmt(r.booked)+'</td><td class="wr">'+esc(bankName(r))+'</td><td><span class="pill p-'+(k==='Paid'?'Paid':'Pending')+'">'+lbl[k]+'</span></td><td class="n">'+(booked?fmt(comm(r,ag).net):'-')+'</td><td>'+rc+'</td><td><div class="ac">'+pay+actions(col,r.id)+'</div></td></tr>';
     }).join('');
     var cu=cr.filter(function(r){return carryKind(r)==='Unpaid'}),cc=cr.filter(function(r){return carryKind(r)==='Unclaimed'}),cp=cr.filter(function(r){return carryKind(r)==='Paid'});
-    h+=secHead('Carried over from earlier months');
+    h+=secHead('Carried over from '+MN[+prevMonthStart().slice(5,7)-1]);
     h+='<div class="stats">'+stat('Unpaid commission carried over',peso(sum(cu,function(r){return comm(r,ag).net})))+stat('Unclaimed loans carried over',peso(sum(cc,function(r){return num(r.approved)}))+' ('+cc.length+')')+stat('Earlier commission paid this period',peso(sum(cp,function(r){return comm(r,ag).net})),true)+'</div>';
     h+=tbl([['Date approved'],['Agent'],['Client'],['Approved',1],['Booked',1],['Bank'],['Carry over reason'],['Net commission',1],['Date commission received'],['Actions']],cbody,'','',1150);
-    h+='<p class="note">These are the same records from earlier months, not copies. Agent sales stay in the month approved. Once you choose PAID, the commission goes to the Financial tab in the month it was received. Unclaimed loans: tap Edit and enter the book amount once claimed.</p>';
+    h+='<p class="note">Only records from last month carry over. These are the same records, not copies. Agent sales stay in the month approved. Once you choose PAID, the commission goes to the Financial tab in the month it was received. Unclaimed loans: tap Edit and enter the book amount once claimed.</p>';
   }
   var bs=bankSummary(rows,ag);
   var brow=bs.keys.map(function(k){
@@ -846,7 +851,7 @@ function finView(){
   h+='<div class="ledger"><div><span>ORC net commission</span><span>'+peso(f.orc)+'</span></div><div><span>DMS net commission</span><span>'+peso(f.dms)+'</span></div><div><span>Other income</span><span>'+peso(f.oi)+'</span></div>'+
     '<div class="tot"><span>Total gross commission</span><span>'+peso(f.gross)+'</span></div><div class="neg"><span>Less: total expenses</span><span>'+peso(f.te)+'</span></div>'+
     '<div class="tot"><span>Net commission</span><span>'+peso(f.net)+'</span></div><div class="share"><span>Sharing commission (net divided by 2)</span><span>'+peso(f.net/2)+'</span></div></div>';
-  h+='<p class="note">Only commission marked PAID is counted here, in the month it was received. Not yet paid (including earlier months): ORC '+peso(f.orcWait)+', DMS '+peso(f.dmsWait)+'.</p>';
+  h+='<p class="note">Only commission marked PAID is counted here, in the month it was received. Not yet paid (this period and last month): ORC '+peso(f.orcWait)+', DMS '+peso(f.dmsWait)+'.</p>';
   if(S.cfg.includeLeads)h+='<p class="note">Leads agent commissions are included in the ORC and DMS lines.</p>';
   h+=secHead('Monthly breakdown for '+F.year);
   var rows=f.months.map(function(x){return '<tr'+(F.month===x.m?' style="background:var(--panel2)"':'')+'><td>'+MN[x.m-1]+'</td><td class="n">'+fmt(x.o)+'</td><td class="n">'+fmt(x.d)+'</td><td class="n">'+fmt(x.i)+'</td><td class="n">'+fmt(x.g)+'</td><td class="n">'+fmt(x.e)+'</td><td class="n">'+fmt(x.n)+'</td><td class="n">'+fmt(x.n/2)+'</td></tr>'}).join('');
